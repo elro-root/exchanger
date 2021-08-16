@@ -37,9 +37,18 @@ class ExchangeViewController: UIViewController {
     
     let network  = NetworkService()
     
+    var activeTextField: UITextField?
+    
     override func viewDidLoad() {
+        
         super.viewDidLoad()
-
+        
+        exchangeView.topField.delegate = self
+        exchangeView.bottomField.delegate = self
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(ExchangeViewController.keyboardWillShow), name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(ExchangeViewController.keyboardWillHide), name: UIResponder.keyboardWillHideNotification, object: nil)
+        
         exchangeView.changeCurrencyButton.backgroundColor = UIColor(red: 140 / 255, green: 18 / 255, blue: 255 / 255, alpha: 0.98)
         exchangeView.changeCurrencyButton.layer.cornerRadius = 16
         setupKeyboard(textField: exchangeView.topField)
@@ -49,7 +58,7 @@ class ExchangeViewController: UIViewController {
                 var data = resources
                 data.sort(by: {$0.description! < $1.description!})
                 self?.currencies = data
-                self?.currencies.forEach({currency in
+                self?.currencies.forEach {currency in
                     guard let top =
                             currency.code?.lowercased().contains("USD".lowercased()),
                           let bottom =
@@ -60,7 +69,7 @@ class ExchangeViewController: UIViewController {
                     } else if bottom {
                         self?.bottomCurrency = currency
                     }
-                })
+                }
             }
         }
         // Do any additional setup after loading the view.
@@ -83,7 +92,44 @@ class ExchangeViewController: UIViewController {
     
 }
 
-// MARK: - Configure keyboard
+// MARK: - Handle keyborad show
+
+extension ExchangeViewController {
+    @objc func keyboardWillShow(notification: NSNotification) {
+        guard let keyboardSize = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue else {
+            // if keyboard size is not available for some reason, dont do anything
+            return
+        }
+        var bottomOfTextField: CGFloat = 0
+        var topOfKeyboard: CGFloat = 0
+        
+        var shouldMoveViewUp = false
+        
+        // if active text field is not nil
+        if let activeTextField = activeTextField {
+            
+            bottomOfTextField = activeTextField.convert(activeTextField.bounds, to: self.view).maxY
+            
+            topOfKeyboard = self.view.frame.height - keyboardSize.height
+            
+            // if the bottom of Textfield is below the top of keyboard, move up
+            if bottomOfTextField > topOfKeyboard {
+                shouldMoveViewUp = true
+            }
+        }
+        
+        if shouldMoveViewUp {
+            self.view.frame.origin.y = 0 + topOfKeyboard - bottomOfTextField - 32
+        }
+    }
+    
+    @objc func keyboardWillHide(notification: NSNotification) {
+        // move back the root view origin to zero
+        self.view.frame.origin.y = 0
+    }
+}
+
+// MARK: - Configure keyboard for textField
 
 extension ExchangeViewController {
     private func setupKeyboard(textField: UITextField) {
@@ -117,4 +163,22 @@ extension ExchangeViewController: setValueDelegate {
             print("cannot assign new currency")
         }
     }
+}
+
+// MARK: - TextFiledDelegate
+
+extension ExchangeViewController: UITextFieldDelegate {
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        // set the activeTextField to the selected textfield
+        self.activeTextField = textField
+    }
+    
+    // when user click 'done' or dismiss the keyboard
+    func textFieldDidEndEditing(_ textField: UITextField) {
+        self.activeTextField = nil
+    }
+    
+    //    func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+    //        return true
+    //    }
 }
